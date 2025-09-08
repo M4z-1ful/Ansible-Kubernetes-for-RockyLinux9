@@ -1,0 +1,91 @@
+---
+- hosts: masters,workers
+  remote_user: "[current-user]"
+  become: yes
+  become_method: sudo
+  become_user: root
+  gather_facts: yes
+  connection: ssh
+  tasks:
+    - name: Update /etc/hosts with all cluster nodes from inventory
+      blockinfile:
+        path: /etc/hosts
+        block: |
+          {% for host in groups['masters'] + groups['workers'] %}
+          {{ hostvars[host]['ansible_host'] }} {{ host }}
+          {% endfor %}
+      when: groups['masters'] is defined and groups['workers'] is defined
+    - name: create containerd configuration file
+      file:
+        path: /etc/modules-load.d/containerd.conf
+        state: touch
+
+    - name: set up containerd prerequisites
+      blockinfile:
+        path: /etc/modules-load.d/containerd.conf
+        block: |
+          overlay
+          br_netfilter
+
+    - name: load modules
+      shell: |
+        modprobe overlay
+        modprobe br_netfilter
+
+    - name: create network settings configuration file
+      file:
+        path: /etc/sysctl.d/99-kubernetes-cri.conf
+        state: touch
+
+    - name: set up containerd networking
+      blockinfile:
+        path: /etc/sysctl.d/99-kubernetes-cri.conf
+        block: |
+          net.bridge.bridge-nf-call-iptables = 1
+          net.ipv4.ip_forward = 1
+          net.bridge.bridge-nf-call-ip6tables = 1
+
+    - name: apply settings
+      command: sysctl --system
+
+    - name: add docker repository
+      shell: |
+        dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+        dnf makecache
+        dnf install -y containerd.io
+        mkdir -p /etc/containerd
+        containerd config default | tee /etc/containerd/config.toml
+        systemctl restart containerd
+
+    - name: create k8s repo file
+      file:
+        path: /etc/yum.repos.d/kubernetes.repo
+        state: touch
+
+    - name: write repository information in the kube repo file
+      blockinfile:
+        path: /etc/yum.repos.d/kubernetes.repo
+        block: |
+          [kubernetes]
+          name=Kubernetes
+          baseurl=https://pkgs.k8s.io/core:/stable:/v1.30/rpm/
+          enabled=1
+          gpgcheck=1
+          repo_gpgcheck=1
+          gpgkey=https://pkgs.k8s.io/core:/stable:/v1.30/rpm/repodata/repomd.xml.key
+
+
+    - name: install kubernetes
+      shell: |
+        dnf install -y kubelet kubeadm kubectl
+
+    - name: enable and start kubelet service
+      systemd:
+        name: kubelet
+        enabled: yes
+        state: started
+
+    - name: disable swap
+      shell: |
+        swapoff -a
+        sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
