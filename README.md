@@ -113,6 +113,7 @@ k8s-worker4 ansible_host=192.168.156.34
 After successful installation, you can verify the following:
 
 ```bash
+# Run on master node
 # All nodes should be in Ready state
 kubectl get nodes
 
@@ -149,6 +150,7 @@ kubeadm token create --print-join-command
 
 **Check cluster status:**
 ```bash
+# Run on master node
 kubectl cluster-info
 kubectl get componentstatuses
 kubectl top nodes  # after installing metrics-server
@@ -160,6 +162,7 @@ This project is distributed under the MIT License.
 
 **Get discovery hash:**
 ```bash
+# Run on master node
 openssl x509 -pubkey -in /etc/kubernetes/pki/ca.crt | \
   openssl rsa -pubin -outform der 2>/dev/null | \
   openssl dgst -sha256 -hex | \
@@ -170,6 +173,146 @@ openssl x509 -pubkey -in /etc/kubernetes/pki/ca.crt | \
 
 **Check nodes:**
 ```bash
+# Run on master node
 kubectl get nodes
 kubectl get pods -A
 ```
+
+## Worker Node Management
+
+### Adding New Worker Nodes
+
+The playbooks support automatic addition of new worker nodes. Follow these steps:
+
+#### 1. Prepare the New Node
+- Ensure the new node runs Rocky Linux 9
+- Configure SSH access from the control machine
+- Ensure the node meets hardware requirements
+
+#### 2. Update Inventory
+Add the new worker node to `inventory.ini`:
+```ini
+# Edit on Ansible control machine
+[workers]
+k8s-worker1 ansible_host=192.168.156.31
+k8s-worker2 ansible_host=192.168.156.32
+k8s-worker3 ansible_host=192.168.156.33
+k8s-worker4 ansible_host=192.168.156.34
+k8s-worker5 ansible_host=192.168.156.35  # New node
+k8s-worker6 ansible_host=192.168.156.36  # New node
+k8s-worker7 ansible_host=192.168.156.37  # New node
+```
+
+#### 3. Run Installation Playbooks
+Execute the playbooks to automatically configure and join the new node:
+```bash
+# Run on Ansible control machine
+# Option 1: Run all playbooks (recommended)
+./run-k8s-install.sh
+
+# Option 2: Run specific playbooks
+ansible-playbook -i inventory.ini 01-user-create.yml
+ansible-playbook -i inventory.ini 02-k8s-install.yml
+ansible-playbook -i inventory.ini 03-k8s-init-cluster.yml
+```
+
+#### 4. Verify New Node
+```bash
+# Run on master node
+kubectl get nodes
+kubectl get pods -o wide  # Check pod distribution
+```
+
+**Note**: Existing nodes will be skipped automatically due to idempotency checks in the playbooks.
+
+### Removing Worker Nodes
+
+Worker node removal requires manual intervention to ensure safe migration of workloads.
+
+#### 1. Pre-removal Checklist
+- Verify cluster has sufficient capacity for workload migration
+- Check for any persistent volumes or stateful applications on the target node
+- Ensure no critical system pods are exclusively running on the target node
+
+#### 2. Drain the Node
+```bash
+# Run on master node
+# Replace <node-name> with the actual node name from 'kubectl get nodes'
+kubectl drain <node-name> --ignore-daemonsets --delete-emptydir-data --force
+
+# Example:
+kubectl drain k8s-worker5 --ignore-daemonsets --delete-emptydir-data --force
+kubectl drain k8s-worker6 --ignore-daemonsets --delete-emptydir-data --force
+kubectl drain k8s-worker7 --ignore-daemonsets --delete-emptydir-data --force
+```
+
+#### 3. Remove from Cluster
+```bash
+# Run on master node
+# Remove the node from Kubernetes cluster
+kubectl delete node <node-name>
+
+# Example:
+kubectl delete node k8s-worker5
+kubectl delete node k8s-worker6
+kubectl delete node k8s-worker7
+```
+
+#### 4. Clean up the Physical Node
+Log into the worker node and reset Kubernetes configuration:
+```bash
+# Run on the worker node being removed
+sudo kubeadm reset --force
+
+# Clean up network interfaces (Flannel)
+sudo rm -rf /var/lib/cni/
+sudo rm -rf /etc/cni/
+sudo ip link delete cni0 2>/dev/null || true
+sudo ip link delete flannel.1 2>/dev/null || true
+
+# Optional: Remove Kubernetes packages
+sudo dnf remove -y kubelet kubeadm kubectl containerd
+```
+
+#### 5. Update Inventory
+Remove the node from `inventory.ini`:
+```ini
+# Edit on Ansible control machine
+[workers]
+k8s-worker1 ansible_host=192.168.156.31
+k8s-worker2 ansible_host=192.168.156.32
+k8s-worker3 ansible_host=192.168.156.33
+k8s-worker4 ansible_host=192.168.156.34
+# k8s-worker5 ansible_host=192.168.156.35  # Removed
+# k8s-worker6 ansible_host=192.168.156.36  # Removed
+# k8s-worker7 ansible_host=192.168.156.37  # Removed
+```
+
+#### 6. Verify Removal
+```bash
+# Run on master node
+kubectl get nodes
+kubectl get pods -o wide  # Verify workloads redistributed
+```
+
+### Emergency Node Recovery
+
+If a node becomes unresponsive:
+
+```bash
+# Run on master node
+# Force remove from cluster (use with caution)
+kubectl delete node <node-name> --force --grace-period=0
+
+# Clean up stuck resources
+kubectl get pods --all-namespaces --field-selector spec.nodeName=<node-name>
+kubectl delete pods <pod-name> --force --grace-period=0 -n <namespace>
+```
+
+### Best Practices
+
+1. **Planning**: Always plan node changes during maintenance windows
+2. **Backup**: Ensure cluster and application backups before major changes
+3. **Monitoring**: Monitor cluster resources during and after node changes
+4. **Testing**: Test workload migration in non-production environments first
+5. **Documentation**: Keep inventory.ini in sync with actual cluster state
