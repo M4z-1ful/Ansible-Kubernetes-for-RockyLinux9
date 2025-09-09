@@ -278,19 +278,35 @@
         state: absent
       ignore_errors: yes
 
-    - name: Remove kube user account
+    - name: Remove SSH authorized keys for kube user (only if different from ansible_user)
+      file:
+        path: /home/kube/.ssh/authorized_keys
+        state: absent
+      ignore_errors: yes
+      when: ansible_user != 'kube'
+
+    - name: Remove SSH directory for kube user (only if different from ansible_user)
+      file:
+        path: /home/kube/.ssh
+        state: absent
+      ignore_errors: yes
+      when: ansible_user != 'kube'
+
+    - name: Remove kube user account (only if different from ansible_user)
       user:
         name: kube
         state: absent
         remove: yes
         force: yes
       ignore_errors: yes
+      when: ansible_user != 'kube'
 
-    - name: Remove kube user home directory (if exists)
+    - name: Remove kube user home directory if exists (only if different from ansible_user)
       file:
         path: /home/kube
         state: absent
       ignore_errors: yes
+      when: ansible_user != 'kube'
 
     - name: Unload kernel modules
       shell: |
