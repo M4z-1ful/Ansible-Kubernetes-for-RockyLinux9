@@ -3,6 +3,33 @@
   become: yes
   any_errors_fatal: true
   tasks:
+    - name: Test basic connectivity with Ansible ping
+      ping:
+      
+    - name: Display ping test result
+      debug:
+        msg: |
+          ============================================================
+          BASIC CONNECTIVITY TEST for {{ inventory_hostname }}
+          ============================================================
+          ✅ Ansible Ping: SUCCESS
+          ✅ Python Available: SUCCESS
+          ============================================================
+          
+    - name: Test SSH privilege escalation
+      command: whoami
+      register: privilege_test
+      
+    - name: Display privilege escalation result
+      debug:
+        msg: |
+          ------------------------------------------------------------
+          PRIVILEGE ESCALATION TEST on {{ inventory_hostname }}
+          ------------------------------------------------------------
+          ✅ SSH Connection: SUCCESS
+          ✅ Privilege Escalation: SUCCESS (running as {{ privilege_test.stdout }})
+          ------------------------------------------------------------
+          
     - name: create a new user and name it kube
       user:
         name: kube
