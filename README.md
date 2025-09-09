@@ -31,6 +31,7 @@ This repository contains Ansible playbooks for automated installation and config
    ansible_ssh_private_key_file=~/.ssh/id_rsa
    ansible_python_interpreter=/usr/bin/python3
    pod_network_cidr=10.244.0.0/16
+   token_ttl=24h
 
    [masters]
    k8s-master ansible_host=192.168.156.30
@@ -41,6 +42,96 @@ This repository contains Ansible playbooks for automated installation and config
    k8s-worker3 ansible_host=192.168.156.33
    k8s-worker4 ansible_host=192.168.156.34
    ```
+
+## Configuration Variables
+
+All configuration variables are defined in the `[all:vars]` section of `inventory.ini`. You can customize these values according to your environment requirements.
+
+### Required Variables
+
+| Variable | Description | Default | Examples |
+|----------|-------------|---------|----------|
+| `ansible_user` | SSH user for connecting to nodes | `root` | `root`, `admin`, `centos` |
+| `ansible_ssh_private_key_file` | Path to SSH private key | `~/.ssh/id_rsa` | `~/.ssh/id_rsa`, `/path/to/key` |
+| `ansible_python_interpreter` | Python interpreter path on target nodes | `/usr/bin/python3` | `/usr/bin/python3` |
+
+### Network Configuration
+
+| Variable | Description | Default | Examples |
+|----------|-------------|---------|----------|
+| `pod_network_cidr` | Pod network CIDR for Flannel | `10.244.0.0/16` | `10.244.0.0/16`, `10.100.0.0/16` |
+
+**Note**: If you change `pod_network_cidr`, ensure it doesn't conflict with your existing network infrastructure.
+
+### Security Settings
+
+| Variable | Description | Default | Examples |
+|----------|-------------|---------|----------|
+| `token_ttl` | Kubernetes join token expiration time | `24h` | `1h`, `30m`, `7d`, `0` |
+
+**Token TTL Examples:**
+- `30m` - 30 minutes (for testing environments)
+- `2h` - 2 hours (for security-conscious environments)
+- `24h` - 24 hours (default, balanced approach)
+- `7d` - 7 days (for environments requiring longer token validity)
+- `0` - Never expires (NOT RECOMMENDED for security reasons)
+
+### Complete Configuration Example
+
+```ini
+[all:vars]
+# SSH Connection Settings
+ansible_user=root
+ansible_ssh_private_key_file=~/.ssh/id_rsa
+ansible_python_interpreter=/usr/bin/python3
+
+# Network Configuration
+pod_network_cidr=10.244.0.0/16
+
+# Security Settings
+token_ttl=24h
+
+[masters]
+k8s-master ansible_host=192.168.156.30
+
+[workers]
+k8s-worker1 ansible_host=192.168.156.31
+k8s-worker2 ansible_host=192.168.156.32
+k8s-worker3 ansible_host=192.168.156.33
+k8s-worker4 ansible_host=192.168.156.34
+```
+
+### Environment-Specific Examples
+
+#### Production Environment
+```ini
+[all:vars]
+ansible_user=root
+ansible_ssh_private_key_file=~/.ssh/prod_key
+ansible_python_interpreter=/usr/bin/python3
+pod_network_cidr=10.244.0.0/16
+token_ttl=2h  # Shorter TTL for security
+```
+
+#### Development Environment
+```ini
+[all:vars]
+ansible_user=root
+ansible_ssh_private_key_file=~/.ssh/dev_key
+ansible_python_interpreter=/usr/bin/python3
+pod_network_cidr=10.100.0.0/16  # Different CIDR to avoid conflicts
+token_ttl=7d  # Longer TTL for convenience
+```
+
+#### Testing Environment
+```ini
+[all:vars]
+ansible_user=root
+ansible_ssh_private_key_file=~/.ssh/test_key
+ansible_python_interpreter=/usr/bin/python3
+pod_network_cidr=10.200.0.0/16
+token_ttl=30m  # Short TTL for frequent testing
+```
 
 ### Installation
 
@@ -89,26 +180,6 @@ ansible-playbook -i inventory.ini 04-k8s-check-cluster.yml
 - **Wait Logic**: Waits up to 10 minutes for core system pods (kube-system + kube-flannel) to reach Running state
 - **Retry Mechanism**: 60 retries with 10-second intervals
 - **Detailed Reporting**: Shows network plugin status and overall cluster health
-
-## Configuration Example
-
-Example `inventory.ini` file:
-```ini
-[all:vars]
-ansible_user=root
-ansible_ssh_private_key_file=~/.ssh/id_rsa
-ansible_python_interpreter=/usr/bin/python3
-pod_network_cidr=10.244.0.0/16    # Flannel default CIDR
-
-[masters]
-k8s-master ansible_host=192.168.156.30
-
-[workers]
-k8s-worker1 ansible_host=192.168.156.31
-k8s-worker2 ansible_host=192.168.156.32
-k8s-worker3 ansible_host=192.168.156.33
-k8s-worker4 ansible_host=192.168.156.34
-```
 
 ## Post-Installation Verification
 
