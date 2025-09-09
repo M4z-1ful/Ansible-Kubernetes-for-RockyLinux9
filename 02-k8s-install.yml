@@ -1,5 +1,5 @@
 ---
-- hosts: all
+- hosts: masters,workers
   remote_user: "[current-user]"
   become: yes
   become_method: sudo
