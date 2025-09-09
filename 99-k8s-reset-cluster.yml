@@ -195,41 +195,16 @@
       ignore_errors: yes
 
     # Step 13: Clean up any remaining processes
-    - name: Check for running Kubernetes and container processes
+    - name: Kill any remaining container processes
       shell: |
-        pgrep -f "{{ item }}" || true
-      register: process_check
-      failed_when: false
-      changed_when: false
-      loop:
-        - containerd
-        - kubelet
-        - kube-proxy
-        - kube-scheduler
-        - kube-controller-manager
-        - kube-apiserver
-        - etcd
-
-    - name: Kill remaining Kubernetes and container processes
-      shell: |
-        if pgrep -f "{{ item }}" > /dev/null 2>&1; then
-          echo "Killing {{ item }} processes..."
-          pkill -f "{{ item }}" || true
-          sleep 1
-        else
-          echo "No {{ item }} processes found"
-        fi
-      register: kill_result
-      failed_when: false
-      changed_when: kill_result.stdout is search("Killing")
-      loop:
-        - containerd
-        - kubelet
-        - kube-proxy
-        - kube-scheduler
-        - kube-controller-manager
-        - kube-apiserver
-        - etcd
+        pkill -f containerd || true
+        pkill -f kubelet || true
+        pkill -f kube-proxy || true
+        pkill -f kube-scheduler || true
+        pkill -f kube-controller-manager || true
+        pkill -f kube-apiserver || true
+        pkill -f etcd || true
+      ignore_errors: yes
 
     # Step 14: Clean package cache
     - name: Clean DNF package cache
