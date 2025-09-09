@@ -1,6 +1,7 @@
 ---
 - hosts: masters
   become: yes
+  any_errors_fatal: true
   tasks:
     - name: Check if cluster is already initialized
       stat:
@@ -75,6 +76,7 @@
 
 - hosts: workers
   become: yes
+  any_errors_fatal: true
   tasks:
     - name: Check if worker node is already joined
       shell: kubectl get nodes {{ inventory_hostname }} >/dev/null 2>&1

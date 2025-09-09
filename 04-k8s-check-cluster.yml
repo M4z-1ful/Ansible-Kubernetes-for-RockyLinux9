@@ -1,6 +1,7 @@
 ---
 - hosts: masters,workers
   become: yes
+  any_errors_fatal: true
   tasks:
     - name: Check if kubelet service is running
       systemd:
@@ -62,6 +63,7 @@
 
 - hosts: masters
   become: yes
+  any_errors_fatal: true
   tasks:
     - name: Check kubectl get nodes
       command: kubectl get nodes

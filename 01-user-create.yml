@@ -1,6 +1,7 @@
 ---
 - hosts: all
   become: yes
+  any_errors_fatal: true
   tasks:
     - name: create a new user and name it kube
       user:
