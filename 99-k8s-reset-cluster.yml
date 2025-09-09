@@ -2,7 +2,7 @@
 - name: Reset Kubernetes Cluster and Remove All Components
   hosts: all
   become: yes
-  any_errors_fatal: true
+  # any_errors_fatal: true
   gather_facts: yes
   vars:
     force_reset: false  # Set to true to force reset even if cluster is not found

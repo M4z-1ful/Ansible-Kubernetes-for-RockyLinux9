@@ -29,9 +29,12 @@
           br_netfilter
 
     - name: load modules
-      shell: |
-        modprobe overlay
-        modprobe br_netfilter
+      modprobe:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - overlay
+        - br_netfilter
 
     - name: create network settings configuration file
       file:
@@ -47,7 +50,15 @@
           net.bridge.bridge-nf-call-ip6tables = 1
 
     - name: apply settings
-      command: sysctl --system
+      sysctl:
+        name: "{{ item.name }}"
+        value: "{{ item.value }}"
+        state: present
+        reload: yes
+      loop:
+        - { name: 'net.bridge.bridge-nf-call-iptables', value: '1' }
+        - { name: 'net.ipv4.ip_forward', value: '1' }
+        - { name: 'net.bridge.bridge-nf-call-ip6tables', value: '1' }
 
     - name: check if docker repository exists
       stat:
@@ -55,21 +66,79 @@
       register: docker_repo_exists
 
     - name: add docker repository
-      shell: |
-        dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
-        dnf makecache
-        dnf install -y containerd.io
-        mkdir -p /etc/containerd
-        containerd config default | tee /etc/containerd/config.toml
-        systemctl restart containerd
+      yum_repository:
+        name: docker-ce-stable
+        description: Docker CE Stable - $basearch
+        baseurl: https://download.docker.com/linux/centos/8/$basearch/stable
+        gpgcheck: yes
+        gpgkey: https://download.docker.com/linux/centos/gpg
+        enabled: yes
+      when: not docker_repo_exists.stat.exists
+
+    - name: install containerd from new repository
+      dnf:
+        name: containerd.io
+        state: present
+      when: not docker_repo_exists.stat.exists
+
+    - name: ensure containerd config directory exists
+      file:
+        path: /etc/containerd
+        state: directory
+        mode: '0755'
+      when: not docker_repo_exists.stat.exists
+
+    - name: check if containerd config exists
+      stat:
+        path: /etc/containerd/config.toml
+      register: containerd_config_exists
+      when: not docker_repo_exists.stat.exists
+
+    - name: generate containerd config
+      shell: containerd config default > /etc/containerd/config.toml
+      when: not docker_repo_exists.stat.exists and not containerd_config_exists.stat.exists
+
+    - name: start and enable containerd
+      systemd:
+        name: containerd
+        state: started
+        enabled: yes
       when: not docker_repo_exists.stat.exists
 
     - name: install containerd if repository already exists
-      shell: |
-        dnf install -y containerd.io
-        mkdir -p /etc/containerd
-        containerd config default | tee /etc/containerd/config.toml
-        systemctl restart containerd
+      dnf:
+        name: containerd.io
+        state: present
+      when: docker_repo_exists.stat.exists
+
+    - name: ensure containerd config directory exists
+      file:
+        path: /etc/containerd
+        state: directory
+        mode: '0755'
+      when: docker_repo_exists.stat.exists
+
+    - name: check if containerd config exists
+      stat:
+        path: /etc/containerd/config.toml
+      register: containerd_config_exists_existing
+      when: docker_repo_exists.stat.exists
+
+    - name: Generate containerd configuration
+      ansible.builtin.shell: containerd config default > /etc/containerd/config.toml
+
+    - name: Configure containerd for Kubernetes
+      ansible.builtin.lineinfile:
+        path: /etc/containerd/config.toml
+        regexp: 'SystemdCgroup = false'
+        line: '            SystemdCgroup = true'
+        backup: yes
+
+    - name: start and enable containerd
+      systemd:
+        name: containerd
+        state: started
+        enabled: yes
       when: docker_repo_exists.stat.exists
 
     - name: create k8s repo file
@@ -91,8 +160,12 @@
 
 
     - name: install kubernetes
-      shell: |
-        dnf install -y kubelet kubeadm kubectl
+      dnf:
+        name:
+          - kubelet
+          - kubeadm
+          - kubectl
+        state: present
 
     - name: enable kubelet service (but do not start until cluster init)
       systemd:

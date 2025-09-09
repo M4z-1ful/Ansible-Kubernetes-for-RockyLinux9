@@ -59,8 +59,15 @@
         mode: '0644'
       when: kubeconfig_exists.stat.exists or (kubeadm_init_result is defined and kubeadm_init_result.rc == 0)
 
+    - name: Wait for API server to be ready
+      wait_for:
+        port: 6443
+        host: "{{ ansible_host }}"
+        delay: 10
+        timeout: 300
+
     - name: Check if Calico is already installed
-      command: kubectl get pods -n kube-system -l k8s-app=calico-node
+      command: kubectl get pods -n kube-system -l k8s-app=calico-node --no-headers
       register: calico_check
       ignore_errors: yes
       changed_when: false
@@ -79,11 +86,9 @@
   any_errors_fatal: true
   tasks:
     - name: Check if worker node is already joined
-      shell: kubectl get nodes {{ inventory_hostname }} >/dev/null 2>&1
-      register: node_check
-      delegate_to: "{{ groups['masters'][0] }}"
-      changed_when: false
-      failed_when: false
+      stat:
+        path: /etc/kubernetes/kubelet.conf
+      register: worker_joined_check
 
     - name: Join worker nodes to Kubernetes cluster
       command: >
@@ -91,7 +96,9 @@
         {{ hostvars[groups['masters'][0]]['join_token_arg'] }}
         {{ hostvars[groups['masters'][0]]['join_hash_arg'] }}
       register: join_result
-      when: node_check.rc != 0 and hostvars[groups['masters'][0]]['join_token_arg'] is defined
+      when: 
+        - not worker_joined_check.stat.exists
+        - hostvars[groups['masters'][0]]['join_token_arg'] is defined
 
     - name: Display join result
       debug:
