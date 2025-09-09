@@ -66,15 +66,15 @@
         delay: 10
         timeout: 300
 
-    - name: Check if Calico is already installed
-      command: kubectl get pods -n kube-system -l k8s-app=calico-node --no-headers
-      register: calico_check
+    - name: Check if Flannel is already installed
+      command: kubectl get pods -n kube-system -l app=flannel --no-headers
+      register: flannel_check
       ignore_errors: yes
       changed_when: false
 
-    - name: Install Calico network plugin
-      command: kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml
-      when: calico_check.rc != 0 or calico_check.stdout_lines | length == 0
+    - name: Install Flannel network plugin
+      command: kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml
+      when: flannel_check.rc != 0 or flannel_check.stdout_lines | length == 0
 
     - name: Display join command for reference
       debug:
