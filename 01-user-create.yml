@@ -1,5 +1,5 @@
 ---
-- hosts: workers,masters
+- hosts: all
   become: yes
   tasks:
     - name: create a new user and name it kube
