@@ -2,6 +2,13 @@
 
 This repository contains Ansible playbooks for automated installation and configuration of Kubernetes clusters on Rocky Linux 9.
 
+## Features
+
+- **Network Plugin**: Flannel (simple and stable)
+- **Fully Automated**: One-click installation script provided
+- **State Validation**: Waits until all pods are in Running state
+- **Error Handling**: Clear error messages when issues occur during installation
+
 ## Quick Start
 
 ### Prerequisites
@@ -9,7 +16,7 @@ This repository contains Ansible playbooks for automated installation and config
 - SSH access with key-based authentication
 - Ansible installed on the control machine
 
-### Installation Steps
+### Configuration
 
 1. **Configure your inventory**
    ```bash
@@ -17,61 +24,79 @@ This repository contains Ansible playbooks for automated installation and config
    vi inventory.ini
    ```
 
-2. **Create users and SSH setup**
-   ```bash
-   ansible-playbook -i inventory.ini 01-user-create.yml
+   Example:
+   ```ini
+   [all:vars]
+   ansible_user=root
+   ansible_ssh_private_key_file=~/.ssh/id_rsa
+   ansible_python_interpreter=/usr/bin/python3
+   pod_network_cidr=10.244.0.0/16
+
+   [masters]
+   k8s-master ansible_host=192.168.156.30
+
+   [workers]
+   k8s-worker1 ansible_host=192.168.156.31
+   k8s-worker2 ansible_host=192.168.156.32
+   k8s-worker3 ansible_host=192.168.156.33
+   k8s-worker4 ansible_host=192.168.156.34
    ```
 
-3. **Install Kubernetes components**
-   ```bash
-   ansible-playbook -i inventory.ini 02-k8s-install.yml
-   ```
+### Installation
 
-4. **Initialize cluster and join nodes**
-   ```bash
-   ansible-playbook -i inventory.ini 03-k8s-init-cluster.yml
-   ```
-
-5. **Check cluster status**
-   ```bash
-   ansible-playbook -i inventory.ini 04-k8s-check-cluster.yml
-   ```
-
-### Cluster Reset (if needed)
-
-To completely remove all Kubernetes components and start fresh:
+#### Method 1: One-Click Installation (Recommended)
 ```bash
-# Reset entire cluster and remove all components
-ansible-playbook -i inventory.ini 99-k8s-reset-cluster.yml
-
-# Reboot all nodes for complete cleanup
-ansible all -i inventory.ini -m reboot -b
-
-# Wait for nodes to come back online
-ansible all -i inventory.ini -m wait_for_connection -a "delay=60 timeout=300"
+# Install entire cluster at once
+./run-k8s-install.sh
 ```
 
-**⚠️ Warning:** The reset playbook will permanently delete all Kubernetes data and configurations!
+#### Method 2: Step-by-Step Installation
+```bash
+# Step 1: Create users and SSH setup
+ansible-playbook -i inventory.ini 01-user-create.yml
 
-## Files Description
+# Step 2: Install Kubernetes components
+ansible-playbook -i inventory.ini 02-k8s-install.yml
 
-- `inventory.ini` - Inventory file with node information and variables
-- `01-user-create.yml` - Creates `kube` user and sets up SSH keys
-- `02-k8s-install.yml` - Installs containerd, kubelet, kubeadm, kubectl
-- `03-k8s-init-cluster.yml` - Initializes master node and joins workers automatically
-- `04-k8s-check-cluster.yml` - Validates cluster installation and status
-- `99-k8s-reset-cluster.yml` - **Completely removes all Kubernetes components and configurations**
+# Step 3: Initialize cluster and join nodes
+ansible-playbook -i inventory.ini 03-k8s-init-cluster.yml
 
-## Configuration
+# Step 4: Check cluster status
+ansible-playbook -i inventory.ini 04-k8s-check-cluster.yml
+```
 
-Edit `inventory.ini` to match your environment:
+## File Structure
 
+```
+├── inventory.ini              # Node information and variables
+├── run-k8s-install.sh        # One-click installation script
+├── 01-user-create.yml        # Creates kube user and sets up SSH keys
+├── 02-k8s-install.yml        # Installs containerd, kubelet, kubeadm, kubectl
+├── 03-k8s-init-cluster.yml   # Initializes master node and joins workers automatically
+└── 04-k8s-check-cluster.yml  # Validates cluster installation and status
+```
+
+## Key Changes
+
+### Network Plugin: Calico → Flannel
+- **Reason**: Flannel is simpler and more stable than Calico
+- **CIDR Configuration**: `10.244.0.0/16` (Flannel default)
+- **Installation Source**: `https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml`
+
+### Enhanced Cluster State Validation
+- **Wait Logic**: Waits up to 10 minutes for all kube-system pods to reach Running state
+- **Retry Mechanism**: 60 retries with 10-second intervals
+- **Detailed Reporting**: Shows network plugin status and overall cluster health
+
+## Configuration Example
+
+Example `inventory.ini` file:
 ```ini
 [all:vars]
 ansible_user=root
 ansible_ssh_private_key_file=~/.ssh/id_rsa
 ansible_python_interpreter=/usr/bin/python3
-pod_network_cidr=192.168.156.0/24
+pod_network_cidr=10.244.0.0/16    # Flannel default CIDR
 
 [masters]
 k8s-master ansible_host=192.168.156.30
@@ -83,65 +108,55 @@ k8s-worker3 ansible_host=192.168.156.33
 k8s-worker4 ansible_host=192.168.156.34
 ```
 
+## Post-Installation Verification
+
+After successful installation, you can verify the following:
+
+```bash
+# All nodes should be in Ready state
+kubectl get nodes
+
+# All system pods should be in Running state
+kubectl get pods -n kube-system
+
+# Check Flannel pods
+kubectl get pods -n kube-system -l app=flannel
+```
+
 ## Troubleshooting
 
-If `04-k8s-check-cluster.yml` shows connection refused errors, it means:
-- The cluster hasn't been initialized yet (run step 4 first)
-- The API server isn't running properly
-- Firewall issues on port 6443
+### Common Issues
 
-## Manual Cluster Setup (Alternative)
+1. **Pods not reaching Running state**
+   - 04-k8s-check-cluster.yml automatically waits for 10 minutes
+   - Provides specific error messages on timeout
 
-If you prefer manual setup instead of automated cluster initialization, see the appendix below.
+2. **Network connectivity issues**
+   - Check firewall settings (ports 6443, 10250, 30000-32767)
+   - Verify SELinux configuration
 
----
+3. **Node join failures**
+   - Check API server status on master node
+   - Verify token expiration
 
-## Appendix: Manual Cluster Setup Tips
+### Manual Cluster Management
 
-### Manual kubeadm init (Alternative to step 4)
-
-**On the master node (192.168.156.30):**
+**Regenerate join token (for adding nodes):**
 ```bash
-kubeadm init \
-  --apiserver-advertise-address=192.168.156.30 \
-  --pod-network-cidr=192.168.156.0/24
-```
-
-**Set up kubeconfig:**
-```bash
-mkdir -p $HOME/.kube
-cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
-chown $(id -u):$(id -g) $HOME/.kube/config
-```
-
-**Install network plugin (Calico):**
-```bash
-kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml
-```
-
-### Manual Worker Node Join
-
-**Get join command on master:**
-```bash
+# Run on master node
 kubeadm token create --print-join-command
 ```
 
-**On each worker node:**
+**Check cluster status:**
 ```bash
-kubeadm join 192.168.156.30:6443 --token <TOKEN> --discovery-token-ca-cert-hash sha256:<HASH>
+kubectl cluster-info
+kubectl get componentstatuses
+kubectl top nodes  # after installing metrics-server
 ```
 
-### Token and Hash Recovery
+## License
 
-**Get current token:**
-```bash
-kubeadm token list
-```
-
-**Create new token:**
-```bash
-kubeadm token create
-```
+This project is distributed under the MIT License.
 
 **Get discovery hash:**
 ```bash
