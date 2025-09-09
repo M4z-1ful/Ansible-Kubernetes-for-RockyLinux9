@@ -48,6 +48,11 @@
     - name: apply settings
       command: sysctl --system
 
+    - name: check if docker repository exists
+      stat:
+        path: /etc/yum.repos.d/docker-ce.repo
+      register: docker_repo_exists
+
     - name: add docker repository
       shell: |
         dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
@@ -56,6 +61,15 @@
         mkdir -p /etc/containerd
         containerd config default | tee /etc/containerd/config.toml
         systemctl restart containerd
+      when: not docker_repo_exists.stat.exists
+
+    - name: install containerd if repository already exists
+      shell: |
+        dnf install -y containerd.io
+        mkdir -p /etc/containerd
+        containerd config default | tee /etc/containerd/config.toml
+        systemctl restart containerd
+      when: docker_repo_exists.stat.exists
 
     - name: create k8s repo file
       file:
@@ -79,13 +93,22 @@
       shell: |
         dnf install -y kubelet kubeadm kubectl
 
-    - name: enable and start kubelet service
+    - name: enable kubelet service (but do not start until cluster init)
       systemd:
         name: kubelet
         enabled: yes
-        state: started
+
+    - name: check if swap is already disabled in fstab
+      lineinfile:
+        path: /etc/fstab
+        regexp: '^[^#]*\s+swap\s+'
+        state: absent
+      check_mode: yes
+      register: swap_check
+      changed_when: false
 
     - name: disable swap
       shell: |
         swapoff -a
         sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
+      when: swap_check.found
