@@ -86,19 +86,18 @@
         path: /etc/containerd
         state: directory
         mode: '0755'
-      when: not docker_repo_exists.stat.exists
 
-    - name: check if containerd config exists
-      stat:
-        path: /etc/containerd/config.toml
-      register: containerd_config_exists
-      when: not docker_repo_exists.stat.exists
-
-    - name: generate containerd config
+    - name: Generate containerd configuration
       shell: containerd config default > /etc/containerd/config.toml
-      when: not docker_repo_exists.stat.exists and not containerd_config_exists.stat.exists
 
-    - name: start and enable containerd
+    - name: Configure containerd for Kubernetes
+      lineinfile:
+        path: /etc/containerd/config.toml
+        regexp: 'SystemdCgroup = false'
+        line: '            SystemdCgroup = true'
+        backup: yes
+
+    - name: start and enable containerd (first time)
       systemd:
         name: containerd
         state: started
@@ -128,35 +127,31 @@
         state: present
       when: docker_repo_exists.stat.exists
 
-    - name: ensure containerd config directory exists
+    - name: ensure containerd config directory exists (existing repo)
       file:
         path: /etc/containerd
         state: directory
         mode: '0755'
       when: docker_repo_exists.stat.exists
 
-    - name: check if containerd config exists
-      stat:
-        path: /etc/containerd/config.toml
-      register: containerd_config_exists_existing
+    - name: Generate containerd configuration (existing repo)
+      shell: containerd config default > /etc/containerd/config.toml
       when: docker_repo_exists.stat.exists
 
-    - name: Generate containerd configuration
-      ansible.builtin.shell: containerd config default > /etc/containerd/config.toml
-
-    - name: Configure containerd for Kubernetes
-      ansible.builtin.lineinfile:
+    - name: Configure containerd for Kubernetes (existing repo)
+      lineinfile:
         path: /etc/containerd/config.toml
         regexp: 'SystemdCgroup = false'
         line: '            SystemdCgroup = true'
         backup: yes
+      when: docker_repo_exists.stat.exists
 
-    - name: start and enable containerd
+    - name: restart and enable containerd (for config changes)
       systemd:
         name: containerd
-        state: started
+        state: restarted
         enabled: yes
-      when: docker_repo_exists.stat.exists
+        daemon_reload: yes
 
     - name: create crictl configuration file
       file:

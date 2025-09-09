@@ -70,6 +70,8 @@ ansible-playbook -i inventory.ini 04-k8s-check-cluster.yml
 ```
 ├── inventory.ini              # Node information and variables
 ├── run-k8s-install.sh        # One-click installation script
+├── reset-k8s-cluster.sh      # Complete reset script (removes everything)
+├── 99-reset-k8s-cluster.yml  # Complete reset playbook
 ├── 01-user-create.yml        # Creates kube user and sets up SSH keys
 ├── 02-k8s-install.yml        # Installs containerd, kubelet, kubeadm, kubectl
 ├── 03-k8s-init-cluster.yml   # Initializes master node and joins workers automatically
@@ -316,4 +318,65 @@ kubectl delete pods <pod-name> --force --grace-period=0 -n <namespace>
 2. **Backup**: Ensure cluster and application backups before major changes
 3. **Monitoring**: Monitor cluster resources during and after node changes
 4. **Testing**: Test workload migration in non-production environments first
+5. **Documentation**: Keep inventory.ini in sync with actual cluster state
+
+## Complete Environment Reset
+
+If you need to completely remove Kubernetes and reset all nodes to pre-installation state:
+
+### Quick Reset (Recommended)
+```bash
+# Run on Ansible control machine
+./reset-k8s-cluster.sh
+```
+
+### Manual Reset
+```bash
+# Run on Ansible control machine
+ansible-playbook -i inventory.ini 99-reset-k8s-cluster.yml
+```
+
+### What Gets Reset
+
+The reset process removes **everything** installed by the playbooks:
+
+#### **Kubernetes Components**
+- Cluster membership (kubeadm reset)
+- All Kubernetes packages (kubelet, kubeadm, kubectl, containerd)
+- Configuration directories (`/etc/kubernetes`, `/var/lib/kubelet`, etc.)
+- systemd services and files
+
+#### **Network Configuration**
+- CNI network interfaces (cni0, flannel.1, docker0)
+- Virtual ethernet interfaces (veth*)
+- iptables rules (reset to defaults)
+- Network plugin configurations
+
+#### **System Configuration**
+- Kernel modules (overlay, br_netfilter)
+- sysctl settings (`/etc/sysctl.d/k8s.conf`)
+- Repository files (kubernetes.repo, docker-ce.repo)
+- Package caches
+
+#### **User Account**
+- 'kube' user account and home directory
+- SSH authorized keys
+- sudo privileges
+
+#### **Local Files**
+- `join-command.txt` (on control machine)
+- `/etc/hosts` cluster entries
+
+### After Reset
+
+After running the reset:
+1. All nodes return to clean Rocky Linux 9 state
+2. Ready for fresh Kubernetes installation
+3. Run `./run-k8s-install.sh` to reinstall
+
+### Safety Features
+
+- **Confirmation required**: Interactive confirmation before reset
+- **Error handling**: Continues even if some operations fail
+- **Detailed logging**: Shows what was removed on each node
 5. **Documentation**: Keep inventory.ini in sync with actual cluster state
