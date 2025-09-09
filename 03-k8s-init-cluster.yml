@@ -81,6 +81,14 @@
         msg: "Join command: kubeadm join {{ ansible_host }}:6443 {{ join_token_arg }} {{ join_hash_arg }}"
       when: join_token_arg is defined and join_hash_arg is defined
 
+    - name: Save join command to file for future use
+      copy:
+        content: "kubeadm join {{ ansible_host }}:6443 {{ join_token_arg }} {{ join_hash_arg }}"
+        dest: "./join-command.txt"
+        mode: '0644'
+      delegate_to: localhost
+      when: join_token_arg is defined and join_hash_arg is defined
+
 - hosts: workers
   become: yes
   any_errors_fatal: true
