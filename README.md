@@ -37,6 +37,22 @@ This repository contains Ansible playbooks for automated installation and config
    ansible-playbook -i inventory.ini 04-k8s-check-cluster.yml
    ```
 
+### Cluster Reset (if needed)
+
+To completely remove all Kubernetes components and start fresh:
+```bash
+# Reset entire cluster and remove all components
+ansible-playbook -i inventory.ini 99-k8s-reset-cluster.yml
+
+# Reboot all nodes for complete cleanup
+ansible all -i inventory.ini -m reboot -b
+
+# Wait for nodes to come back online
+ansible all -i inventory.ini -m wait_for_connection -a "delay=60 timeout=300"
+```
+
+**⚠️ Warning:** The reset playbook will permanently delete all Kubernetes data and configurations!
+
 ## Files Description
 
 - `inventory.ini` - Inventory file with node information and variables
@@ -44,6 +60,7 @@ This repository contains Ansible playbooks for automated installation and config
 - `02-k8s-install.yml` - Installs containerd, kubelet, kubeadm, kubectl
 - `03-k8s-init-cluster.yml` - Initializes master node and joins workers automatically
 - `04-k8s-check-cluster.yml` - Validates cluster installation and status
+- `99-k8s-reset-cluster.yml` - **Completely removes all Kubernetes components and configurations**
 
 ## Configuration
 
