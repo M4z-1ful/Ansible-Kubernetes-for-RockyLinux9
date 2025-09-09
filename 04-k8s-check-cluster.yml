@@ -79,6 +79,40 @@
           {{ nodes_output.stdout }}
           ============================================================
 
+    - name: Wait for all kube-system pods to be in Running state
+      shell: |
+        kubectl get pods -n kube-system --no-headers | grep -v Running | grep -v Completed | wc -l
+      register: not_running_pods
+      until: not_running_pods.stdout | int == 0
+      retries: 60
+      delay: 10
+      failed_when: false
+
+    - name: Display current pod status during wait
+      shell: kubectl get pods -n kube-system
+      register: current_pods
+      when: not_running_pods.stdout | int > 0
+
+    - name: Show non-running pods if any
+      debug:
+        msg: |
+          ============================================================
+          PODS STILL NOT RUNNING ({{ not_running_pods.stdout }} pods):
+          ============================================================
+          {{ current_pods.stdout }}
+          ============================================================
+      when: not_running_pods.stdout | int > 0
+
+    - name: Fail if pods are still not running after maximum retries
+      fail:
+        msg: |
+          ============================================================
+          ❌ TIMEOUT: Some pods are still not in Running state after 10 minutes
+          Non-running pods count: {{ not_running_pods.stdout }}
+          Please check the cluster status manually with: kubectl get pods -n kube-system
+          ============================================================
+      when: not_running_pods.stdout | int > 0
+
     - name: Check kubectl get pods -A
       command: kubectl get pods -A
       register: pods_output
@@ -92,6 +126,36 @@
           ============================================================
           {{ pods_output.stdout }}
           ============================================================
+
+    - name: Check network plugin pods status
+      shell: |
+        kubectl get pods -n kube-system -o wide | grep -E "(calico|flannel)" | awk '{print $1, $3}'
+      register: network_pods_status
+      ignore_errors: yes
+
+    - name: Display network plugin status
+      debug:
+        msg: |
+          ============================================================
+          NETWORK PLUGIN PODS STATUS
+          ============================================================
+          {{ network_pods_status.stdout }}
+          ============================================================
+      when: network_pods_status.stdout != ""
+
+    - name: Verify all network plugin pods are running
+      shell: |
+        kubectl get pods -n kube-system -o jsonpath='{.items[?(@.metadata.labels.k8s-app=="calico-node")].status.phase}' | grep -v Running | wc -w
+      register: calico_not_running
+      when: network_pods_status.stdout | regex_search('calico')
+      ignore_errors: yes
+
+    - name: Verify all flannel pods are running
+      shell: |
+        kubectl get pods -n kube-system -o jsonpath='{.items[?(@.metadata.labels.app=="flannel")].status.phase}' | grep -v Running | wc -w
+      register: flannel_not_running
+      when: network_pods_status.stdout | regex_search('flannel')
+      ignore_errors: yes
 
     - name: Check cluster component status
       command: kubectl get componentstatuses
@@ -128,13 +192,16 @@
           ============================================================
           CLUSTER HEALTH SUMMARY
           ============================================================
-          Master Node Connection: {{ 'SUCCESS' if nodes_output.rc == 0 else 'FAILED' }}
-          Pods Status Check: {{ 'SUCCESS' if pods_output.rc == 0 else 'FAILED' }}
-          Cluster Info: {{ 'SUCCESS' if cluster_info.rc == 0 else 'FAILED' }}
+          Master Node Connection: {{ 'SUCCESS' if (nodes_output is defined and nodes_output.rc == 0) else 'FAILED' }}
+          Pods Status Check: {{ 'SUCCESS' if (pods_output is defined and pods_output.rc == 0) else 'FAILED' }}
+          Cluster Info: {{ 'SUCCESS' if (cluster_info is defined and cluster_info.rc == 0) else 'FAILED' }}
+          All Pods Running: {{ 'SUCCESS' if (not_running_pods is defined and not_running_pods.stdout is defined and not_running_pods.stdout | int == 0) else 'FAILED (' + ((not_running_pods.stdout | default('unknown')) if not_running_pods is defined else 'unknown') + ' pods not running)' }}
+          Network Plugin: {{ 'Calico' if (network_pods_status is defined and network_pods_status.stdout is defined and network_pods_status.stdout | regex_search('calico')) else ('Flannel' if (network_pods_status is defined and network_pods_status.stdout is defined and network_pods_status.stdout | regex_search('flannel')) else 'Unknown') }}
+          Network Plugin Status: {{ 'SUCCESS' if ((calico_not_running is defined and calico_not_running.stdout is defined and calico_not_running.stdout | int == 0) or (flannel_not_running is defined and flannel_not_running.stdout is defined and flannel_not_running.stdout | int == 0)) else 'CHECKING' }}
           
-          {% if nodes_output.rc == 0 and pods_output.rc == 0 %}
-          ✅ CLUSTER STATUS: HEALTHY
+          {% if (nodes_output is defined and nodes_output.rc == 0) and (pods_output is defined and pods_output.rc == 0) and (not_running_pods is defined and not_running_pods.stdout is defined and not_running_pods.stdout | int == 0) %}
+          ✅ CLUSTER STATUS: HEALTHY - All components are running properly
           {% else %}
-          ❌ CLUSTER STATUS: ISSUES DETECTED
+          ❌ CLUSTER STATUS: ISSUES DETECTED - Some components are not ready
           {% endif %}
           ============================================================
