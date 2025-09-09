@@ -8,36 +8,57 @@
         state: started
       register: kubelet_status
 
-    - name: Print kubelet service status
+    - name: Display kubelet service status
       debug:
-        var: kubelet_status
+        msg: |
+          ============================================================
+          KUBELET SERVICE STATUS on {{ inventory_hostname }}
+          ============================================================
+          Service Active: {{ kubelet_status.status.ActiveState | default('unknown') }}
+          Service Status: {{ kubelet_status.status.SubState | default('unknown') }}
+          ============================================================
 
     - name: Check kubeadm version
       command: kubeadm version
       register: kubeadm_version
       ignore_errors: yes
 
-    - name: Print kubeadm version
+    - name: Display kubeadm version
       debug:
-        var: kubeadm_version.stdout
+        msg: |
+          ------------------------------------------------------------
+          KUBEADM VERSION on {{ inventory_hostname }}
+          ------------------------------------------------------------
+          {{ kubeadm_version.stdout | default('kubeadm not found or error') }}
+          ------------------------------------------------------------
 
     - name: Check kubectl version
       command: kubectl version --client=true
       register: kubectl_version
       ignore_errors: yes
 
-    - name: Print kubectl version
+    - name: Display kubectl version
       debug:
-        var: kubectl_version.stdout
+        msg: |
+          ------------------------------------------------------------
+          KUBECTL VERSION on {{ inventory_hostname }}
+          ------------------------------------------------------------
+          {{ kubectl_version.stdout | default('kubectl not found or error') }}
+          ------------------------------------------------------------
 
     - name: Check kubelet version
       command: kubelet --version
       register: kubelet_version
       ignore_errors: yes
 
-    - name: Print kubelet version
+    - name: Display kubelet version
       debug:
-        var: kubelet_version.stdout
+        msg: |
+          ------------------------------------------------------------
+          KUBELET VERSION on {{ inventory_hostname }}
+          ------------------------------------------------------------
+          {{ kubelet_version.stdout | default('kubelet not found or error') }}
+          ------------------------------------------------------------
 
 - hosts: masters
   become: yes
@@ -47,15 +68,71 @@
       register: nodes_output
       ignore_errors: yes
 
-    - name: Print kubectl get nodes output
+    - name: Display cluster nodes status
       debug:
-        var: nodes_output.stdout
+        msg: |
+          ============================================================
+          KUBERNETES CLUSTER NODES STATUS
+          ============================================================
+          {{ nodes_output.stdout }}
+          ============================================================
 
     - name: Check kubectl get pods -A
       command: kubectl get pods -A
       register: pods_output
       ignore_errors: yes
 
-    - name: Print kubectl get pods -A output
+    - name: Display all pods status
       debug:
-        var: pods_output.stdout
+        msg: |
+          ============================================================
+          ALL PODS STATUS (kubectl get pods -A)
+          ============================================================
+          {{ pods_output.stdout }}
+          ============================================================
+
+    - name: Check cluster component status
+      command: kubectl get componentstatuses
+      register: components_output
+      ignore_errors: yes
+
+    - name: Display component status
+      debug:
+        msg: |
+          ============================================================
+          CLUSTER COMPONENTS STATUS
+          ============================================================
+          {{ components_output.stdout }}
+          ============================================================
+      when: components_output.rc == 0
+
+    - name: Check cluster info
+      command: kubectl cluster-info
+      register: cluster_info
+      ignore_errors: yes
+
+    - name: Display cluster information
+      debug:
+        msg: |
+          ============================================================
+          CLUSTER INFORMATION
+          ============================================================
+          {{ cluster_info.stdout }}
+          ============================================================
+
+    - name: Final cluster health summary
+      debug:
+        msg: |
+          ============================================================
+          CLUSTER HEALTH SUMMARY
+          ============================================================
+          Master Node Connection: {{ 'SUCCESS' if nodes_output.rc == 0 else 'FAILED' }}
+          Pods Status Check: {{ 'SUCCESS' if pods_output.rc == 0 else 'FAILED' }}
+          Cluster Info: {{ 'SUCCESS' if cluster_info.rc == 0 else 'FAILED' }}
+          
+          {% if nodes_output.rc == 0 and pods_output.rc == 0 %}
+          ✅ CLUSTER STATUS: HEALTHY
+          {% else %}
+          ❌ CLUSTER STATUS: ISSUES DETECTED
+          {% endif %}
+          ============================================================
