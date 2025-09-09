@@ -32,10 +32,35 @@
       when: kubeadm_init_result is defined and kubeadm_init_result.stdout_lines is defined
 
     - name: Generate join command if cluster already exists
-      command: kubeadm token create --print-join-command
-      register: existing_join_command
+      block:
+        - name: Check if valid token exists
+          shell: |
+            if kubeadm token list 2>/dev/null | grep -v TOKEN | grep -v '<invalid>' | head -1 | awk '{print $2}' | grep -E '^[0-9]+[hms]$' >/dev/null 2>&1; then
+              echo "valid_token_exists"
+            else
+              echo "no_valid_token"
+            fi
+          register: token_status
+          changed_when: false
+
+        - name: Get existing join command if token is valid
+          shell: |
+            TOKEN=$(kubeadm token list | grep -v TOKEN | grep -v '<invalid>' | head -1 | awk '{print $1}')
+            HASH=$(openssl x509 -pubkey -in /etc/kubernetes/pki/ca.crt | openssl rsa -pubin -outform der 2>/dev/null | openssl dgst -sha256 -hex | sed 's/^.* //')
+            echo "kubeadm join {{ ansible_host }}:6443 --token $TOKEN --discovery-token-ca-cert-hash sha256:$HASH"
+          register: reuse_join_command
+          when: token_status.stdout == "valid_token_exists"
+          changed_when: false
+
+        - name: Create new token and get join command if needed
+          command: kubeadm token create --print-join-command
+          register: new_join_command
+          when: token_status.stdout == "no_valid_token"
+
+        - name: Set final join command
+          set_fact:
+            existing_join_command: "{{ reuse_join_command if token_status.stdout == 'valid_token_exists' else new_join_command }}"
       when: kubeconfig_exists.stat.exists
-      changed_when: false
 
     - name: Set join command variables from existing cluster
       set_fact:
@@ -78,16 +103,20 @@
 
     - name: Display join command for reference
       debug:
-        msg: "Join command: kubeadm join {{ ansible_host }}:6443 {{ join_token_arg }} {{ join_hash_arg }}"
-      when: join_token_arg is defined and join_hash_arg is defined
+        msg: |
+          Join command: {{ existing_join_command.stdout if existing_join_command is defined else 
+                          'kubeadm join ' + ansible_host + ':6443 ' + join_token_arg + ' ' + join_hash_arg }}
+      when: join_token_arg is defined and join_hash_arg is defined or existing_join_command is defined
 
     - name: Save join command to file for future use
       copy:
-        content: "kubeadm join {{ ansible_host }}:6443 {{ join_token_arg }} {{ join_hash_arg }}"
+        content: |
+          {{ existing_join_command.stdout if existing_join_command is defined else 
+             'kubeadm join ' + ansible_host + ':6443 ' + join_token_arg + ' ' + join_hash_arg }}
         dest: "./join-command.txt"
         mode: '0644'
       delegate_to: localhost
-      when: join_token_arg is defined and join_hash_arg is defined
+      when: join_token_arg is defined and join_hash_arg is defined or existing_join_command is defined
 
 - hosts: workers
   become: yes
@@ -99,14 +128,14 @@
       register: worker_joined_check
 
     - name: Join worker nodes to Kubernetes cluster
-      command: >
-        kubeadm join {{ hostvars[groups['masters'][0]]['ansible_host'] }}:6443
-        {{ hostvars[groups['masters'][0]]['join_token_arg'] }}
-        {{ hostvars[groups['masters'][0]]['join_hash_arg'] }}
+      shell: >
+        {{ hostvars[groups['masters'][0]]['existing_join_command']['stdout'] if hostvars[groups['masters'][0]]['existing_join_command'] is defined 
+           else 'kubeadm join ' + hostvars[groups['masters'][0]]['ansible_host'] + ':6443 ' + 
+                hostvars[groups['masters'][0]]['join_token_arg'] + ' ' + hostvars[groups['masters'][0]]['join_hash_arg'] }}
       register: join_result
       when: 
         - not worker_joined_check.stat.exists
-        - hostvars[groups['masters'][0]]['join_token_arg'] is defined
+        - hostvars[groups['masters'][0]]['join_token_arg'] is defined or hostvars[groups['masters'][0]]['existing_join_command'] is defined
 
     - name: Display join result
       debug:

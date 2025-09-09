@@ -79,9 +79,9 @@
           {{ nodes_output.stdout }}
           ============================================================
 
-    - name: Wait for all kube-system pods to be in Running state
+    - name: Wait for core system pods to be in Running state (kube-system + kube-flannel)
       shell: |
-        kubectl get pods -n kube-system --no-headers | grep -v Running | grep -v Completed | wc -l
+        kubectl get pods -n kube-system -n kube-flannel --no-headers | grep -v Running | grep -v Completed | wc -l
       register: not_running_pods
       until: not_running_pods.stdout | int == 0
       retries: 60
@@ -89,7 +89,7 @@
       failed_when: false
 
     - name: Display current pod status during wait
-      shell: kubectl get pods -n kube-system
+      shell: kubectl get pods -n kube-system -n kube-flannel
       register: current_pods
       when: not_running_pods.stdout | int > 0
 
@@ -109,7 +109,7 @@
           ============================================================
           ❌ TIMEOUT: Some pods are still not in Running state after 10 minutes
           Non-running pods count: {{ not_running_pods.stdout }}
-          Please check the cluster status manually with: kubectl get pods -n kube-system
+          Please check the cluster status manually with: kubectl get pods -A
           ============================================================
       when: not_running_pods.stdout | int > 0
 

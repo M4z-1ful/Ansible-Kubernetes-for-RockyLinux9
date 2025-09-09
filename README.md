@@ -6,7 +6,7 @@ This repository contains Ansible playbooks for automated installation and config
 
 - **Network Plugin**: Flannel (simple and stable)
 - **Fully Automated**: One-click installation script provided
-- **State Validation**: Waits until all pods are in Running state
+- **State Validation**: Waits until core system pods (kube-system + kube-flannel) are in Running state
 - **Error Handling**: Clear error messages when issues occur during installation
 
 ## Quick Start
@@ -84,7 +84,7 @@ ansible-playbook -i inventory.ini 04-k8s-check-cluster.yml
 - **Installation Source**: `https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml`
 
 ### Enhanced Cluster State Validation
-- **Wait Logic**: Waits up to 10 minutes for all kube-system pods to reach Running state
+- **Wait Logic**: Waits up to 10 minutes for core system pods (kube-system + kube-flannel) to reach Running state
 - **Retry Mechanism**: 60 retries with 10-second intervals
 - **Detailed Reporting**: Shows network plugin status and overall cluster health
 
@@ -117,20 +117,21 @@ After successful installation, you can verify the following:
 # All nodes should be in Ready state
 kubectl get nodes
 
-# All system pods should be in Running state
+# Core system pods should be in Running state
 kubectl get pods -n kube-system
 
-# Check Flannel pods
-kubectl get pods -n kube-system -l app=flannel
+# Check Flannel pods (in kube-flannel namespace)
+kubectl get pods -n kube-flannel
 ```
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **Pods not reaching Running state**
-   - 04-k8s-check-cluster.yml automatically waits for 10 minutes
+1. **Core system pods not reaching Running state**
+   - 04-k8s-check-cluster.yml automatically waits for 10 minutes for kube-system and kube-flannel pods
    - Provides specific error messages on timeout
+   - User application pods are not included in this validation
 
 2. **Network connectivity issues**
    - Check firewall settings (ports 6443, 10250, 30000-32767)
