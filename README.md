@@ -67,14 +67,20 @@ All configuration variables are defined in the `[all:vars]` section of `inventor
 
 | Variable | Description | Default | Examples |
 |----------|-------------|---------|----------|
-| `token_ttl` | Kubernetes join token expiration time | `24h` | `1h`, `30m`, `7d`, `0` |
+| `token_ttl` | Kubernetes join token expiration time | `24h` | `1h`, `30m`, `168h`, `0` |
 
 **Token TTL Examples:**
 - `30m` - 30 minutes (for testing environments)
 - `2h` - 2 hours (for security-conscious environments)
 - `24h` - 24 hours (default, balanced approach)
-- `7d` - 7 days (for environments requiring longer token validity)
+- `168h` - 7 days (for environments requiring longer token validity)
 - `0` - Never expires (NOT RECOMMENDED for security reasons)
+
+**Supported Time Units:**
+- `s` - seconds
+- `m` - minutes  
+- `h` - hours
+- **Note**: `d` (days) is NOT supported. Use hours instead (e.g., `168h` for 7 days)
 
 ### Complete Configuration Example
 
@@ -120,7 +126,7 @@ ansible_user=root
 ansible_ssh_private_key_file=~/.ssh/dev_key
 ansible_python_interpreter=/usr/bin/python3
 pod_network_cidr=10.100.0.0/16  # Different CIDR to avoid conflicts
-token_ttl=7d  # Longer TTL for convenience
+token_ttl=168h  # Longer TTL for convenience (7 days)
 ```
 
 #### Testing Environment
